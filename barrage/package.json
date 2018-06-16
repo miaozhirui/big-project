@@ -1,0 +1,17 @@
+{
+  "name": "barrage",
+  "version": "1.0.0",
+  "description": "弹幕效果 - canvas + video + websocket + redis",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "redis": "^2.8.0",
+    "ws": "^5.2.0"
+  }
+}

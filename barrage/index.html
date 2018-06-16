@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        #content{
+            width:640px;
+            margin:0 auto;
+            position: relative;
+            text-align: center;
+        }
+        #canvas{
+            position: absolute;
+        }
+        input{
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+<div id="content">
+    <canvas id="canvas"></canvas>
+    <video src="./comment.mp4" width="640" height="380" controls id="video"></video><br/>
+    <input type="text" id="text"><button id="add">添加弹幕</button>
+    <input type="color" id="color">
+    <input type="range" max="40" min="20" id="range">
+</div>
+<script>
+    var data = [
+        {
+            //value是值，speed速度, time表示出现的时间
+            value: '前端',
+            speed: 2,
+            time: 0,
+            color:'red',
+            fontSize:20
+        },
+        {
+            value:'缪啊',
+            time:2
+        }
+    ];
+    var $ = document.querySelector.bind(document);
+
+    var canvas = $('#canvas');
+    var video = $('#video');
+    var text = $('#text')
+    var add = $('#add')
+
+
+    class Barrage{
+
+        constructor(obj, ctx){
+
+            this.value = obj.value;//弹幕的内容
+            this.time = obj.time;//弹幕的时间
+            this.obj = obj;
+            this.ctx = ctx;
+
+
+        }
+
+        init() {
+            //透明
+           this.opacity = this.obj.opacity || this.ctx.opacity;
+           this.color = this.obj.color || this.ctx.color;
+           this.fontSize = this.obj.fontSize || this.ctx.fontSize;
+           this.speed = this.obj.speed || this.ctx.speed;
+
+           //求自己的宽度，目的是用来校验当前是否继续绘制
+            let span = document.createElement('span');
+            span.innerText = this.value;
+            span.style.font = this.fontSize + 'px "Microsoft YaHei"';
+            span.style.position = "absolute";//为了求宽度，一定位就编程了块元素
+            document.body.appendChild(span);
+            //记录弹幕有多宽
+            this.width = span.clientWidth;
+            document.body.removeChild(span);
+
+            //弹幕的出现位置
+            this.x = this.ctx.canvas.width;
+            this.y = this.ctx.canvas.height * Math.random();
+
+            if(this.y < this.fontSize){
+
+                this.y = this.fontSize
+            }
+            if(this.y > this.ctx.canvas.height - this.fontSize){
+
+                this.y = this.ctx.canvas.height - this.fontSize;
+            }
+        }
+
+        render(){
+
+            //渲染自己， 将自己画在画布上面
+            this.ctx.context.font = this.fontSize + 'px "Microsoft YaHei"';
+            this.ctx.context.fillStyle = this.color;
+            this.ctx.context.fillText(this.value, this.x, this.y)
+        }
+    }
+
+    class CanvasBarrage{
+
+        constructor(canvas, video, options ={}) {
+
+            if(!canvas || !video) return ;
+
+            this.canvas = canvas;
+            this.video = video;
+
+            let defaultOptions = { //默认选项
+
+                fontSize:20,
+                color:'gold',
+                speed:2,
+                opacity:0.3,
+                data:[]
+            }
+
+            //用第二个属性覆盖第一个的
+            Object.assign(this,defaultOptions, options);
+
+            //拿到画布
+            this.context = canvas.getContext('2d');
+            //设置canvas和video等高等宽
+
+            this.canvas.width = video.clientWidth;
+            this.canvas.height = video.clientHeight;
+
+            //是否暂停
+            this.isPaused = true;//默认暂停播放，表示不渲染弹幕
+            //把传进来的数据全部转换成弹幕存储起来, Barrage是创造弹幕的实例的类
+            this.barrages = this.data.map(obj => new Barrage(obj,this))
+
+            //渲染所有弹幕
+            this.render();
+        }
+
+        renderBarrage() {
+
+            //将数组中的弹幕一个一个取出，判断时间和视屏的时间是否符合，符合就执行渲染
+
+            let time = this.video.currentTime; //拿出视屏当前的时间
+
+            this.barrages.forEach(barrage => {
+                if(!barrage.flag && time >= barrage.time) {
+                    //先去初始化，初始化后再进行绘制
+                    //1. 如果没有初始化，先去初始化
+                    if(!barrage.isInited) {//算位置宽度和大小
+
+                        barrage.init();
+                        barrage.isInited = true;
+
+                    }
+
+                    barrage.x -= barrage.speed;
+
+                    barrage.render();//渲染自己
+                    if(barrage.x <= barrage.width*-1 ){
+
+                        barrage.flag = true;//做停止渲染的标记
+                    }
+                }
+            })
+        }
+
+        render() {//渲染弹幕
+
+            //第一次 先清空弹幕，执行渲染弹幕，如果没有暂停继续渲染
+            this.context.clearRect(0,0,this.canvas.width, this.canvas.height);
+            this.renderBarrage();//渲染弹幕，
+
+            if(this.isPaused === false) {
+                //递归渲染
+                requestAnimationFrame(this.render.bind(this))
+            }
+        }
+
+        add(obj) {
+
+            this.barrages.push(new Barrage(obj, this));
+        }
+        reset() {
+            this.context.clearRect(0,0, this.canvas.width, this.canvas.height);
+
+            let time = this.video.currentTime;
+
+            this.barrages.forEach(barrage => {
+
+                barrage.flag = false;
+                if(time <= barrage.time) {
+
+                    barrage.isInited = false;//重新渲染
+                } else {
+
+                    barrage.flag = true;//其他弹幕不渲染
+                }
+            })
+
+            this.render()
+        }
+    }
+
+    var canvasBarrage;
+
+    let socket = new WebSocket('ws://localhost:3000');
+    socket.onopen = function () {
+        socket.onmessage = function (e) {
+
+            let message = JSON.parse(e.data);
+            if(message.type === 'ADD') {
+
+               canvasBarrage.add(message.data);
+            }
+
+            if(message.type === 'INIT') {
+
+                canvasBarrage = new CanvasBarrage(canvas, video, {
+
+                    data:message.data
+                })
+            }
+
+        }
+    }
+
+    video.addEventListener('play', function(){
+
+        canvasBarrage.isPaused = false;
+        canvasBarrage.render();
+    })
+
+    video.addEventListener('pause', function(){
+
+        canvasBarrage.isPaused = true;
+
+    })
+
+    $('#add').addEventListener('click', function () {
+
+        let value=$('#text').value;
+        let time = video.currentTime;
+        let color = $('#color').value;
+        let fontSize = $('#range').value;
+        let obj = { time, value, color, fontSize}
+
+        socket.send(JSON.stringify(obj));
+        //canvasBarrage.add(obj);//添加弹幕，实现添加功能
+    })
+
+    video.addEventListener('seeked', function () {
+        canvasBarrage.reset();
+    })
+</script>
+</body>
+</html>
